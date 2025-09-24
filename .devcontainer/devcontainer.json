@@ -1,0 +1,14 @@
+{
+    "name": "Shell_csharp",
+    "image": "shukriadams/dotnet6build:0.0.2",
+    "customizations": {
+        "vscode": {
+            "extensions": ["ms-dotnettools.csdevkit"],
+            "settings" : {
+                "editor.codeLens": false,
+                "editor.autoClosingBrackets": "never",
+                "editor.autoIndent": "brackets"
+            }
+        }
+    }
+}
