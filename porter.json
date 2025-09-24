@@ -1,0 +1,8 @@
+{
+    "name" : "MadScience_Shell",
+    "export" : "src/package",
+    "runtimes" : [ 6 ],
+    "author" : "Shukri Adams <contact@shukriadams.com",
+    "license": "MIT",
+    "description": "Makes it a bit easier to call things via the shell"
+}
