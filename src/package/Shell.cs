@@ -1,20 +1,84 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
 namespace MadScience_Shell
 {
-    public class MadScience_Shell
+    /// <summary>
+    /// Crudely-cross platform shell wrapper. Tries to abstract away most of the .net quirks of running 
+    /// shell commands, especially on linux. Can do with improvements, but has worked in production 
+    /// environments for years.
+    /// </summary>
+    public class Shell
     {
-        public ShellResult Run(string command)
+        #region FIELDS
+
+        private readonly string _command;
+
+        public ShellType ShellType { get; set; }
+
+        #endregion
+
+        #region PROPERTIES
+
+        public List<string> OutLines { get; private set; } = new List<string>();
+
+        public List<string> ErrLines { get; private set; } = new List<string>();
+
+        public string Out
+        {
+            get
+            {
+                return string.Join("\n", OutLines);
+            }  
+        }
+
+        public string Err
+        {
+            get
+            {
+                return string.Join("\n", ErrLines);
+            }  
+        }
+
+        public int Timeout { get; set; } = 10000;
+
+        #endregion
+
+        #region CTORS
+
+        public Shell(string command)
+        {
+            _command = command;
+
+            // fallback to sane defaults for windows vs others. This can be overridden before running.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                ShellType = ShellType.Cmd;
+            else
+                ShellType = ShellType.Sh;
+        }
+
+        #endregion
+
+        #region METHODS
+
+        /// <summary>
+        /// Executes shell command. Does not throw exceptions - check if return code is 0 to determine if passed,
+        /// check Err or ErrLines for details.
+        /// </summary>
+        /// <returns></returns>
+        public int Run()
         {
             Process cmd = new Process();
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (this.ShellType == ShellType.Sh)
             {
                 cmd.StartInfo.FileName = "sh";
-                cmd.StartInfo.Arguments = $"-c \"{command}\"";
+                cmd.StartInfo.Arguments = $"-c \"{_command}\"";
             }
             else
             {
                 cmd.StartInfo.FileName = "cmd.exe";
-                cmd.StartInfo.Arguments = $"/k {command}";
+                cmd.StartInfo.Arguments = $"/k {_command}";
             }
 
             cmd.StartInfo.RedirectStandardInput = true;
@@ -22,11 +86,6 @@ namespace MadScience_Shell
             cmd.StartInfo.RedirectStandardError = true;
             cmd.StartInfo.CreateNoWindow = true;
             cmd.StartInfo.UseShellExecute = false;
-
-            List<string> stdOut = new List<string>();
-            List<string> stdErr = new List<string>();
-            
-            int timeout = 50000;
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
@@ -40,11 +99,11 @@ namespace MadScience_Shell
                             if (e.Data == null)
                                 outputWaitHandle.Set();
                             else
-                                stdOut.Add(e.Data);
+                                this.OutLines.Add(e.Data);
                         }
                         catch (Exception ex)
                         {
-                            stdErr.Add(e.ToString());
+                            this.ErrLines.Add(e.ToString());
                         }
                     };
 
@@ -55,11 +114,11 @@ namespace MadScience_Shell
                             if (e.Data == null)
                                 errorWaitHandle.Set();
                             else
-                                stdErr.Add(e.Data);
+                                this.ErrLines.Add(e.Data);
                         }
                         catch (Exception ex)
                         {
-                            stdErr.Add(ex.ToString());
+                            this.ErrLines.Add(ex.ToString());
                         }
                     };
 
@@ -67,15 +126,14 @@ namespace MadScience_Shell
                     cmd.BeginOutputReadLine();
                     cmd.BeginErrorReadLine();
 
-                    if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || (cmd.WaitForExit(timeout) && outputWaitHandle.WaitOne(timeout) && errorWaitHandle.WaitOne(timeout)))
-                        return new ShellResult
-                        {
-                            StdOut = stdOut,
-                            StdErr = stdErr,
-                            ExitCode = cmd.ExitCode
-                        };
+                    if (cmd.WaitForExit(this.Timeout) && outputWaitHandle.WaitOne(this.Timeout) && errorWaitHandle.WaitOne(this.Timeout))
+                        return cmd.ExitCode;
                     else
-                        throw new Exception($"Timed out on command : {command} after {timeout} ms");
+                    {
+                        this.ErrLines.Add($"Timed out on command : {_command} after {this.Timeout} ms");
+                        return 1;
+                    }
+                        
                 }
             }
             else
@@ -84,26 +142,22 @@ namespace MadScience_Shell
                 cmd.StandardInput.Flush();
                 cmd.StandardInput.Close();
 
-
                 while (!cmd.StandardOutput.EndOfStream)
                 {
                     string line = cmd.StandardOutput.ReadLine();
-                    stdOut.Add(line);
+                    this.OutLines.Add(line);
                 }
 
                 while (!cmd.StandardError.EndOfStream)
                 {
                     string line = cmd.StandardError.ReadLine();
-                    stdErr.Add(line);
+                    this.ErrLines.Add(line);
                 }
 
-                return new ShellResult
-                {
-                    StdOut = stdOut,
-                    StdErr = stdErr,
-                    ExitCode = cmd.ExitCode
-                };
+                return cmd.ExitCode;
             }
         }
+
+        #endregion
     }
 }
