@@ -41,7 +41,9 @@ namespace MadScience_Shell
         }
 
         public int Timeout { get; set; } = 10000;
-
+        
+        public string WorkingDirectory { get; set; }
+        
         #endregion
 
         #region CTORS
@@ -86,7 +88,9 @@ namespace MadScience_Shell
             cmd.StartInfo.RedirectStandardError = true;
             cmd.StartInfo.CreateNoWindow = true;
             cmd.StartInfo.UseShellExecute = false;
-
+            if (!string.IsNullOrEmpty(this.WorkingDirectory))
+                cmd.StartInfo.WorkingDirectory = this.WorkingDirectory;
+            
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 using (AutoResetEvent outputWaitHandle = new AutoResetEvent(false))
