@@ -140,8 +140,9 @@ namespace MadScience_Shell
                         
                 }
             }
-            else
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
+                // fall back to windows, there is no Mac handler yet
                 cmd.Start();
                 cmd.StandardInput.Flush();
                 cmd.StandardInput.Close();
@@ -159,6 +160,11 @@ namespace MadScience_Shell
                 }
 
                 return cmd.ExitCode;
+
+            }
+            else
+            {
+                throw new Exception($"Unsupported os platform");
             }
         }
 
