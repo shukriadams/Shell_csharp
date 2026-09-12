@@ -5,8 +5,8 @@ namespace MadScience_Shell
 {
     /// <summary>
     /// Crudely-cross platform shell wrapper. Tries to abstract away most of the .net quirks of running 
-    /// shell commands, especially on linux. Can do with improvements, but has worked in production 
-    /// environments for years.
+    /// shell commands, especially on linux. Can do with improvements, but is comfirmed working in high-stress 
+    /// and high-load production environments for years.
     /// </summary>
     public class Shell
     {
@@ -23,6 +23,10 @@ namespace MadScience_Shell
         public List<string> OutLines { get; private set; } = new List<string>();
 
         public List<string> ErrLines { get; private set; } = new List<string>();
+
+        public LogEvent OnInfo;
+
+        public LogEvent OnError;
 
         public string Out
         {
@@ -103,11 +107,19 @@ namespace MadScience_Shell
                             if (e.Data == null)
                                 outputWaitHandle.Set();
                             else
-                                this.OutLines.Add(e.Data);
+                            {
+                                if (this.OnInfo != null)
+                                    this.OnInfo.Invoke(e.Data);
+                                else
+                                    this.OutLines.Add(e.Data);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            this.ErrLines.Add(e.ToString());
+                            if (this.OnError != null)
+                                this.OnError.Invoke(e.ToString());
+                            else
+                                this.ErrLines.Add(e.ToString());
                         }
                     };
 
@@ -118,11 +130,20 @@ namespace MadScience_Shell
                             if (e.Data == null)
                                 errorWaitHandle.Set();
                             else
-                                this.ErrLines.Add(e.Data);
+                            {
+                                if (this.OnError != null)
+                                    this.OnError.Invoke(e.Data);
+                                else
+                                    this.ErrLines.Add(e.Data);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            this.ErrLines.Add(ex.ToString());
+                            if (this.OnError != null)
+                                this.OnError.Invoke(ex.ToString());
+                            else
+                                this.ErrLines.Add(ex.ToString());
+
                         }
                     };
 
@@ -150,13 +171,19 @@ namespace MadScience_Shell
                 while (!cmd.StandardOutput.EndOfStream)
                 {
                     string line = cmd.StandardOutput.ReadLine();
-                    this.OutLines.Add(line);
+                    if (this.OnInfo != null)
+                        this.OnInfo.Invoke(line);
+                    else
+                        this.OutLines.Add(line);
                 }
 
                 while (!cmd.StandardError.EndOfStream)
                 {
                     string line = cmd.StandardError.ReadLine();
-                    this.ErrLines.Add(line);
+                    if (this.OnError != null)
+                        this.OnError.Invoke(line);
+                    else
+                        this.ErrLines.Add(line);
                 }
 
                 return cmd.ExitCode;
